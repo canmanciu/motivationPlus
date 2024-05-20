@@ -1,8 +1,14 @@
+import re
+import time
+import json
+
 from flask import Flask, jsonify, request
-from common.mysql_operate import db
-from common.redis_operate import redis_db
+
+from common.aes_operate import cipher
 from common.md5_operate import get_md5
-import re, time
+from common.psycopy2_operate import db
+from common.redis_operate import redis_db
+from common.snowflake_operate import make_snowflake
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False  # jsonify返回的中文正常显示
@@ -10,7 +16,57 @@ app.config["JSON_AS_ASCII"] = False  # jsonify返回的中文正常显示
 
 @app.route('/')
 def hello_world():
-    return 'Hello World!'
+    return '404'
+
+
+@app.route('/device/init', methods=["POST"])
+def device_init():
+    try:
+        deviceid = request.json.get("deviceId", "").strip()  # 设备id
+        system = request.json.get("system", "").strip()  # 系统
+        branch = request.json.get("branch", "").strip()  # 品牌
+        system_version = request.json.get("systemVersion", "").strip()  # 系统版本
+        app_version = request.json.get("appVersion", "").strip()  # 应用版本
+        name = request.json.get("name", "").strip()  # 名称
+        application_id = request.json.get("applicationId", "").strip()  # 应用id
+        extension = request.json.get("extension", "{}").strip()  # 扩展字段
+
+        """根据deviceId 进行查询，如果存在直接返回，不存在则新增"""
+        sql = "select * from motivation_device where device_id = '{}'".format(deviceid)
+        data = db.select_db(sql)
+        print("获取 {} 设备信息 == >> {}".format(deviceid, data))
+        if data:
+            sdid = data[0].get(0)
+        else:
+            """创建新纪录"""
+            now = int(time.time_ns() / 1_1000_000)
+            snowflake_id = make_snowflake(int(now), 0, 0, 0)
+            sqlInsertDevice = "INSERT INTO " \
+                              "motivation_device(" \
+                              "id, device_id, system, branch, system_version, name, ext, create_time, update_time" \
+                              ") " \
+                              "VALUES('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')" \
+                .format(snowflake_id, deviceid, system, branch, system_version, name, extension, now, now)
+            db.execute_db(sqlInsertDevice)
+            sdid = str(snowflake_id)
+
+        sqlQueryApp = "select * from motivation_device_app where device_id = '{}' and appid = '{}'" \
+            .format(deviceid, application_id)
+        application = db.select_db(sqlQueryApp)
+        if not application:
+            now = int(time.time_ns() / 1_1000_000)
+            sqlInsertDevApp = "INSERT INTO " \
+                              "motivation_device_app(device_id, appid, version, create_time, update_time) " \
+                              "VALUES('{}', '{}', '{}', '{}', '{}')" \
+                .format(deviceid, application_id, app_version, now, now)
+            db.execute_db(sqlInsertDevApp)
+
+        fp = cipher.encrypt(json.dumps(request.json))
+        result = {"sdid": sdid, "fp": fp}
+        return jsonify({"code": 200, "result": result})
+    except Exception as e:
+        print("操作出现错误：{}".format(e))
+        return jsonify({"code": 500, "message": "系统异常"})
 
 
 @app.route("/users", methods=["GET"])
@@ -41,7 +97,7 @@ def user_register():
     sex = request.json.get("sex", "0").strip()  # 性别，默认为0(男性)
     telephone = request.json.get("telephone", "").strip()  # 手机号
     address = request.json.get("address", "").strip()  # 地址，默认为空串
-    if username and password and telephone: # 注意if条件中 "" 也是空, 按False处理
+    if username and password and telephone:  # 注意if条件中 "" 也是空, 按False处理
         sql1 = "SELECT username FROM user WHERE username = '{}'".format(username)
         res1 = db.select_db(sql1)
         print("查询到用户名 ==>> {}".format(res1))
@@ -57,9 +113,9 @@ def user_register():
         elif res2:
             return jsonify({"code": 2005, "msg": "手机号已被注册！！！"})
         else:
-            password = get_md5(username, password) # 把传入的明文密码通过MD5加密变为密文，然后再进行注册
+            password = get_md5(username, password)  # 把传入的明文密码通过MD5加密变为密文，然后再进行注册
             sql3 = "INSERT INTO user(username, password, role, sex, telephone, address) " \
-                  "VALUES('{}', '{}', '1', '{}', '{}', '{}')".format(username, password, sex, telephone, address)
+                   "VALUES('{}', '{}', '1', '{}', '{}', '{}')".format(username, password, sex, telephone, address)
             db.execute_db(sql3)
             print("新增用户信息SQL ==>> {}".format(sql3))
             return jsonify({"code": 0, "msg": "恭喜，注册成功！"})
@@ -72,22 +128,22 @@ def user_login():
     """登录用户"""
     username = request.values.get("username", "").strip()
     password = request.values.get("password", "").strip()
-    if username and password: # 注意if条件中空串 "" 也是空, 按False处理
+    if username and password:  # 注意if条件中空串 "" 也是空, 按False处理
         sql1 = "SELECT username FROM user WHERE username = '{}'".format(username)
         res1 = db.select_db(sql1)
         print("查询到用户名 ==>> {}".format(res1))
         if not res1:
             return jsonify({"code": 1003, "msg": "用户名不存在！！！"})
-        md5_password = get_md5(username, password) # 把传入的明文密码通过MD5加密变为密文
+        md5_password = get_md5(username, password)  # 把传入的明文密码通过MD5加密变为密文
         sql2 = "SELECT * FROM user WHERE username = '{}' and password = '{}'".format(username, md5_password)
         res2 = db.select_db(sql2)
         print("获取 {} 用户信息 == >> {}".format(username, res2))
         if res2:
-            timeStamp = int(time.time()) # 获取当前时间戳
+            timeStamp = int(time.time())  # 获取当前时间戳
             # token = "{}{}".format(username, timeStamp)
-            token = get_md5(username, str(timeStamp)) # MD5加密后得到token
-            redis_db.handle_redis_token(username, token) # 把token放到redis中存储
-            login_info = { # 构造一个字段，将 id/username/token/login_time 返回
+            token = get_md5(username, str(timeStamp))  # MD5加密后得到token
+            redis_db.handle_redis_token(username, token)  # 把token放到redis中存储
+            login_info = {  # 构造一个字段，将 id/username/token/login_time 返回
                 "id": res2[0]["id"],
                 "username": username,
                 "token": token,
@@ -98,29 +154,30 @@ def user_login():
     else:
         return jsonify({"code": 1001, "msg": "用户名或密码不能为空！！！"})
 
+
 @app.route("/update/user/<int:id>", methods=['PUT'])
-def user_update(id): # id为准备修改的用户ID
+def user_update(id):  # id为准备修改的用户ID
     """修改用户信息"""
-    admin_user = request.json.get("admin_user", "").strip() # 当前登录的管理员用户
+    admin_user = request.json.get("admin_user", "").strip()  # 当前登录的管理员用户
     token = request.json.get("token", "").strip()  # token口令
     new_password = request.json.get("password", "").strip()  # 新的密码
     new_sex = request.json.get("sex", "0").strip()  # 新的性别，如果参数不传sex，那么默认为0(男性)
     new_telephone = request.json.get("telephone", "").strip()  # 新的手机号
     new_address = request.json.get("address", "").strip()  # 新的联系地址，默认为空串
-    if admin_user and token and new_password and new_telephone: # 注意if条件中空串 "" 也是空, 按False处理
+    if admin_user and token and new_password and new_telephone:  # 注意if条件中空串 "" 也是空, 按False处理
         if not (new_sex == "0" or new_sex == "1"):
             return jsonify({"code": 4007, "msg": "输入的性别只能是 0(男) 或 1(女)！！！"})
         elif not (len(new_telephone) == 11 and re.match("^1[3,5,7,8]\d{9}$", new_telephone)):
             return jsonify({"code": 4008, "msg": "手机号格式不正确！！！"})
         else:
-            redis_token = redis_db.handle_redis_token(admin_user) # 从redis中取token
+            redis_token = redis_db.handle_redis_token(admin_user)  # 从redis中取token
             if redis_token:
-                if redis_token == token: # 如果从redis中取到的token不为空，且等于请求body中的token
+                if redis_token == token:  # 如果从redis中取到的token不为空，且等于请求body中的token
                     sql1 = "SELECT role FROM user WHERE username = '{}'".format(admin_user)
                     res1 = db.select_db(sql1)
                     print("根据用户名 【 {} 】 查询到用户类型 == >> {}".format(admin_user, res1))
                     user_role = res1[0]["role"]
-                    if user_role == 0: # 如果当前登录用户是管理员用户
+                    if user_role == 0:  # 如果当前登录用户是管理员用户
                         sql2 = "SELECT * FROM user WHERE id = '{}'".format(id)
                         res2 = db.select_db(sql2)
                         print("根据用户ID 【 {} 】 查询到用户信息 ==>> {}".format(id, res2))
@@ -128,9 +185,9 @@ def user_update(id): # id为准备修改的用户ID
                         res3 = db.select_db(sql3)
                         print("返回结果：{}".format(res3))
                         print("查询到手机号 ==>> {}".format(res3))
-                        if not res2: # 如果要修改的用户不存在于数据库中，res2为空
+                        if not res2:  # 如果要修改的用户不存在于数据库中，res2为空
                             return jsonify({"code": 4005, "msg": "修改的用户ID不存在，无法进行修改，请检查！！！"})
-                        elif res3: # 如果要修改的手机号已经存在于数据库中，res3非空
+                        elif res3:  # 如果要修改的手机号已经存在于数据库中，res3非空
                             return jsonify({"code": 4006, "msg": "手机号已被注册，无法进行修改，请检查！！！"})
                         else:
                             # 如果请求参数不传address，那么address字段不会被修改，仍为原值
@@ -152,6 +209,7 @@ def user_update(id): # id为准备修改的用户ID
     else:
         return jsonify({"code": 4001, "msg": "管理员用户/token口令/密码/手机号不能为空，请检查！！！"})
 
+
 @app.route("/delete/user/<string:username>", methods=['POST'])
 def user_delete(username):
     admin_user = request.json.get("admin_user", "").strip()  # 当前登录的管理员用户
@@ -171,7 +229,7 @@ def user_delete(username):
                     print("根据用户名 【 {} 】 查询到用户信息 ==>> {}".format(username, res2))
                     if not res2:  # 如果要删除的用户不存在于数据库中，res2为空
                         return jsonify({"code": 3005, "msg": "删除的用户名不存在，无法进行删除，请检查！！！"})
-                    elif res2[0]["role"] == 0: # 如果要删除的用户是管理员用户，则不允许删除
+                    elif res2[0]["role"] == 0:  # 如果要删除的用户是管理员用户，则不允许删除
                         return jsonify({"code": 3006, "msg": "用户名：【 {} 】，该用户不允许删除！！！".format(username)})
                     else:
                         sql3 = "DELETE FROM user WHERE username = '{}'".format(username)
