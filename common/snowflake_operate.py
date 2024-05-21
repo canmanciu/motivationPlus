@@ -1,5 +1,6 @@
 import datetime
 import socket
+import time
 
 # twitter's snowflake parameters
 twepoch = 1288834974657
@@ -68,6 +69,7 @@ if __name__ == '__main__':
     # print(make_snowflake(int(time.time_ns()), 0, 0, 0))
     # print(get_local_ip())
     # assert(melt(make_snowflake(t0, 0, 0, 0))[0] == t0)
-    import json
-    print(json.dumps({"a":"aaa"}))
+    print(time.time_ns()//1_000_000)
+    import uuid
+    print(uuid.uuid4())
 

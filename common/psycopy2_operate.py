@@ -43,6 +43,8 @@ class PostgresDb:
             self.cur.execute(sql)
             # 提交事务
             self.conn.commit()
+            if sql.endswith("RETURNING id"):
+                return self.cur.fetchone()[0]
         except Exception as e:
             print("操作出现错误：{}".format(e))
             # 回滚所有更改

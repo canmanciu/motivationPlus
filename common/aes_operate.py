@@ -20,8 +20,8 @@ class AESCipher:
 
         # 初始化加密器
         iv = os.urandom(16)  # 生成随机的初始化向量
-        cipher = Cipher(algorithms.AES(self.key), modes.CBC(iv), backend=default_backend())
-        encryptor = cipher.encryptor()
+        c = Cipher(algorithms.AES(self.key), modes.CBC(iv), backend=default_backend())
+        encryptor = c.encryptor()
 
         # 加密数据
         ciphertext = encryptor.update(padded_data) + encryptor.finalize()
@@ -36,8 +36,8 @@ class AESCipher:
         ciphertext = ciphertext[16:]
 
         # 初始化解密器
-        cipher = Cipher(algorithms.AES(self.key), modes.CBC(iv), backend=default_backend())
-        decryptor = cipher.decryptor()
+        c = Cipher(algorithms.AES(self.key), modes.CBC(iv), backend=default_backend())
+        decryptor = c.decryptor()
 
         # 解密数据
         decrypted_padded = decryptor.update(ciphertext) + decryptor.finalize()
@@ -49,6 +49,6 @@ class AESCipher:
         return plaintext.decode('utf-8')
 
 
-key = os.urandom(32)  # 生成一个随机的32字节密钥
+key = base64.b64decode("JWMB276HW+u9GnMiyG4HZtlpIV2spHW1OOcORwfSRXo=")
 cipher = AESCipher(key)
 

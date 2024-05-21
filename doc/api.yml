@@ -1,0 +1,236 @@
+openapi: 3.0.3
+info:
+  title: iQuoteOne - OpenAPI 1.0
+  description: |-
+    iQuoteOne 1.0 版本接口文档
+  termsOfService: http://iquote.one/
+  contact:
+    email: canmanciu@gmail.com
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.0
+externalDocs:
+  description: Find out more about iQuoteOne
+  url: http://swagger.io
+servers:
+  - url: https://app.iquote.one/api
+  - url: https://gztest.canmanciu.top/api
+tags:
+  - name: biz
+    description: 业务接口
+    externalDocs:
+      description: Find out more about biz
+      url: http://app.iquote.one/api/*
+  - name: device
+    description: 设备相关接口
+    externalDocs:
+      description: Find out more about device
+      url: http://app.iquote.one/api/device/*
+  - name: user
+    description: 用户相关接口
+    externalDocs:
+      description: Find out more about user
+      url: http://app.iquote.one/api/user/*
+paths:
+  /device/init:
+    post:
+      tags:
+        - device
+      summary: 进行设备初始化
+      description: 根据本地设备信息进行设备初始化，deviceId 必传，如未能获取到系统唯一deviceId，可自行生成一个uuid，否则调用接口将由接口生成随机deviceId
+      operationId: deviceInit
+      requestBody:
+        description: 设备初始化
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Device'
+        required: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceInitResponse'
+  /user/login:
+    post:
+      tags:
+        - user
+      summary: 帐号登录
+      description: 帐号登录
+      operationId: userLogin
+      requestBody:
+        description: 帐号登录
+        content:
+          application/json:
+            schema:
+              description: 登录验证信息，本次版本仅支持deviceId加上fp，后续若接入其他登录方式再进行扩展
+              type: object
+              properties:
+                deviceId:
+                  type: string
+                  description: 设备id
+                devFp:
+                  type: string
+                  description: 设备指纹
+        required: true
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLoginResponse'
+components:
+  schemas:
+    Device:
+      type: object
+      properties:
+        deviceId:
+          type: string
+          description: 设备唯一id，如 iOS 的 idfv
+          example: 4654646636363
+        system:
+          type: string
+          description: 系统名称
+          example: ios
+          enum:
+            - ios
+            - android
+            - windows
+            - mac
+            - linux
+            - browser
+        branch:
+          type: string
+          description: 品牌
+          example: apple
+          enum:
+            - apple
+            - xiaomi
+            - vivo
+        systemVersion:
+          type: string
+          description: 系统版本
+          example: 17.4.1
+        name:
+          type: string
+          description: 设备名称
+          example: xxx的iPhone
+        applicationId:
+          type: string
+          description: 应用id
+          example: motivationPlus
+        applicationVersion:
+          type: string
+          description: 应用版本号
+          example: 1.0.0
+        extension:
+          type: object
+          description: 设备扩展字段
+          properties:
+            sysLang:
+              type: string
+              description: 系统语言
+              example: en-US
+            phoneNo:
+              type: string
+              description: 系统语言
+              example: 185****5565
+            carrier:
+              type: string
+              description: 运营商
+              example: dianxin
+              enum:
+                - dianxin
+                - yidong
+                - liantong
+            wifiSsid:
+              type: string
+              description: 无线网id
+      xml:
+        name: device
+    Application:
+      type: object
+      properties:
+        id:
+          type: string
+          example: motivationPlus
+        name:
+          type: string
+          example: motivationPlus
+        description:
+          type: string
+          example: motivationPlus
+      xml:
+        name: application
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: xxxxxxxxx
+        nickname:
+          type: string
+          example: CANMANCIU
+        email:
+          type: string
+          example: canmanciu@gmail.com
+        mobile:
+          type: string
+          example: 17236152425
+      xml:
+        name: user
+    UserLoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            result:
+              type: object
+              properties:
+                session:
+                  type: string
+                  description: 登录态凭证
+                  example: dfhaiofdjhaifhdioasjfids
+                uid:
+                  type: string
+                  description: 用户帐号
+                  example: JKDDID-DJJDUID-DJDIDJH
+          xml:
+            name: userLoginResponse
+    DeviceInitResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            result:
+              type: object
+              properties:
+                fp:
+                  type: string
+                  description: 设备加密指纹
+                  example: DHDJAFHUDFJDjdhdjJSJD
+                deviceId:
+                  type: string
+                  description: 设备唯一id
+                  example: addfjdkafdjdjdjadj
+          xml:
+            name: deviceInitResponse
+    ApiResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+          description: 200 表示正常，400 表示入参错误， 500 表示系统异常
+          enum:
+            - 200
+            - 400
+            - 500
+        message:
+          type: string
+      xml:
+        name: '##default'
