@@ -21,4 +21,4 @@ class RedisDb():
             return redis_token
 
 
-redis_db = RedisDb(REDIS_HOST, REDIS_PORT, REDIS_PASSWD)
+# redis_db = RedisDb(REDIS_HOST, REDIS_PORT, REDIS_PASSWD)

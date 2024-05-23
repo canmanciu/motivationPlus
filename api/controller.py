@@ -57,6 +57,7 @@ def device_init():
         return jsonify({"code": 200, "result": result})
     except Exception as e:
         print("操作出现错误：{}".format(e))
+        app.logger.exception("捕获到异常")
         return jsonify({"code": 500, "message": "系统异常"})
 
 
@@ -122,6 +123,7 @@ def user_login():
         return jsonify({"code": 200, "result": result})
     except Exception as e:
         print("操作出现错误：{}".format(e))
+        app.logger.exception("捕获到异常")
         return jsonify({"code": 500, "message": "系统异常"})
 
 
