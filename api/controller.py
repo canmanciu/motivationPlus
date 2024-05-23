@@ -8,6 +8,7 @@ from common.aes_operate import cipher
 from common.psycopy2_operate import db
 from common.ip_operate import getip
 from dao.device_dao import device_dao
+from werkzeug.exceptions import BadRequest
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False  # jsonify返回的中文正常显示
@@ -55,10 +56,13 @@ def device_init():
         fp = cipher.encrypt(json.dumps(request.json))
         result = {"deviceId": deviceid, "devFp": fp}
         return jsonify({"code": 200, "result": result})
+    except BadRequest as e:
+        # 如果 get_json() 引发 BadRequest 异常，则捕获并处理它
+        return jsonify({"code": 400, "message": "参数异常"}), 400
     except Exception as e:
         print("操作出现错误：{}".format(e))
         app.logger.exception("捕获到异常")
-        return jsonify({"code": 500, "message": "系统异常"})
+        return jsonify({"code": 500, "message": "系统异常"}), 500
 
 
 @app.route('/user/login', methods=["POST"])
@@ -121,9 +125,12 @@ def user_login():
         sess = cipher.encrypt(json.dumps(sessObj))
         result = {"sess": sess, "uid": userid}
         return jsonify({"code": 200, "result": result})
+    except BadRequest as e:
+        # 如果 get_json() 引发 BadRequest 异常，则捕获并处理它
+        return jsonify({"code": 400, "message": "参数异常"}), 400
     except Exception as e:
         print("操作出现错误：{}".format(e))
         app.logger.exception("捕获到异常")
-        return jsonify({"code": 500, "message": "系统异常"})
+        return jsonify({"code": 500, "message": "系统异常"}), 500
 
 
