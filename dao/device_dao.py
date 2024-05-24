@@ -19,6 +19,17 @@ class DeviceDao:
         sql = "select * from common_device where device_id = '{}'".format(deviceid)
         return db.select_db(sql)
 
+    def select_device_app_by_deviceid(self, deviceid):
+        sql = "select * from common_device_app where device_id = '{}'".format(deviceid)
+        return db.select_db(sql)
+
+    def add_device_app(self, deviceid, appid, version, now):
+        sqlInsertDevApp = "INSERT INTO " \
+                          "common_device_app(device_id, appid, version, create_time, update_time) " \
+                          "VALUES('{}', '{}', '{}', '{}', '{}')" \
+            .format(deviceid, appid, version, now, now)
+        db.execute_db(sqlInsertDevApp)
+
 
 device_dao = DeviceDao(db)
 

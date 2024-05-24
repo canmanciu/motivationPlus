@@ -1,9 +1,8 @@
 openapi: 3.0.3
 info:
-  title: iQuoteOne - OpenAPI 1.0
-  description: |-
-    iQuoteOne 1.0 版本接口文档
-  termsOfService: http://iquote.one/
+  title: motivationPlus - OpenAPI 1.0
+  description: motivationPlus 1.0 版本接口文档
+  termsOfService: http://app.iquote.one/
   contact:
     email: canmanciu@gmail.com
   license:
@@ -38,7 +37,9 @@ paths:
       tags:
         - device
       summary: 进行设备初始化
-      description: 根据本地设备信息进行设备初始化，deviceId 必传，如未能获取到系统唯一deviceId，可自行生成一个uuid，否则调用接口将由接口生成随机deviceId
+      description: >-
+        根据本地设备信息进行设备初始化，deviceId
+        必传，如未能获取到系统唯一deviceId，可自行生成一个uuid，否则调用接口将由接口生成随机deviceId
       operationId: deviceInit
       requestBody:
         description: 设备初始化
@@ -83,6 +84,84 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserLoginResponse'
+  /sentence:
+    get:
+      parameters:
+        - name: devfp
+          in: header
+          description: '设备指纹'
+          required: true
+          schema:
+            type: string
+        - name: sess
+          in: header
+          description: '登录态'
+          required: true
+          schema:
+            type: string
+        - name: lastId
+          in: query
+          description: '最大id'
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: length
+          in: query
+          description: '长度'
+          required: false
+          schema:
+            type: integer
+            format: int64
+      tags:
+        - biz
+      summary: 获取金句
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SentenceResponse'
+  /background:
+    get:
+      parameters:
+        - name: devfp
+          in: header
+          description: '设备指纹'
+          required: true
+          schema:
+            type: string
+        - name: sess
+          in: header
+          description: '登录态'
+          required: true
+          schema:
+            type: string
+        - name: lastId
+          in: query
+          description: '最大id'
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: length
+          in: query
+          description: '长度'
+          required: false
+          schema:
+            type: integer
+            format: int64
+      tags:
+        - biz
+      summary: 获取背景图
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackgroundResponse'
 components:
   schemas:
     Device:
@@ -183,6 +262,31 @@ components:
           example: 17236152425
       xml:
         name: user
+    Sentence:
+      type: object
+      properties:
+        id:
+          type: number
+          example: 1
+        name:
+          type: string
+          example: 金句
+        content:
+          type: string
+          example: '你若不努力,连失败的资格都没有'
+      xml:
+        name: sentence
+    Background:
+      type: object
+      properties:
+        name:
+          type: string
+          example: 背景图1
+        src:
+          type: string
+          example: 'https://app.iquate.one/xxxxxxx'
+      xml:
+        name: background
     UserLoginResponse:
       allOf:
         - $ref: '#/components/schemas/ApiResponse'
@@ -201,6 +305,28 @@ components:
                   example: JKDDID-DJJDUID-DJDIDJH
           xml:
             name: userLoginResponse
+    SentenceResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            result:
+              type: array
+              items:
+                $ref: '#/components/schemas/Sentence'
+          xml:
+            name: sentenceResponse
+    BackgroundResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiResponse'
+        - type: object
+          properties:
+            result:
+              type: array
+              items:
+                $ref: '#/components/schemas/Background'
+          xml:
+            name: backgroundResponse
     DeviceInitResponse:
       allOf:
         - $ref: '#/components/schemas/ApiResponse'

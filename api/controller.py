@@ -1,14 +1,18 @@
-import time
+import csv
 import json
+import time
 import uuid
 
 from flask import Flask, jsonify, request
+from werkzeug.exceptions import BadRequest
 
 from common.aes_operate import cipher
-from common.psycopy2_operate import db
 from common.ip_operate import getip
+from common.session_operate import session
+from dao.background_dao import background_dao
 from dao.device_dao import device_dao
-from werkzeug.exceptions import BadRequest
+from dao.sentence_dao import sentence_dao
+from dao.user_dao import user_dao
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False  # jsonify返回的中文正常显示
@@ -41,16 +45,10 @@ def device_init():
             now = int(time.time_ns() // 1_1000_000)
             device_dao.add(deviceid, system, branch, system_version, name, extension, now)
 
-        sqlQueryApp = "select * from common_device_app where device_id = '{}' and appid = '{}'" \
-            .format(deviceid, application_id)
-        application = db.select_db(sqlQueryApp)
+        application = device_dao.select_device_app_by_deviceid(deviceid)
         if not application:
             now = int(time.time_ns() // 1_1000_000)
-            sqlInsertDevApp = "INSERT INTO " \
-                              "common_device_app(device_id, appid, version, create_time, update_time) " \
-                              "VALUES('{}', '{}', '{}', '{}', '{}')" \
-                .format(deviceid, application_id, app_version, now, now)
-            db.execute_db(sqlInsertDevApp)
+            device_dao.add_device_app(deviceid, application_id, app_version, now)
 
         request.json['deviceId'] = deviceid
         fp = cipher.encrypt(json.dumps(request.json))
@@ -75,55 +73,143 @@ def user_login():
             return jsonify({"code": 400, "message": "params illegal"})
 
         """根据设备进行帐号生成"""
-        sqlSelectUserLogin = "select * from common_user_login_account where login_account = '{}' and status = 1"\
-            .format(deviceid)
-        data = db.select_db(sqlSelectUserLogin)
+        data = user_dao.select_by_login_account(deviceid)
         now = int(time.time_ns() // 1_1000_000)
         print("获取 {} 登录帐号绑定信息 == >> {}".format(deviceid, data))
         if data:
             userid = data[0].get(1)
-            sqlSelectUser = "select * from common_user where id = '{}'".format(userid)
-            db.select_db(sqlSelectUser)
+            user_dao.select_by_userid(userid)
         else:
             """创建新纪录"""
-            sqlInsertUserLogin = "INSERT INTO " \
-                                 "common_user(" \
-                                 "nickname, email, mobile, create_time, update_time" \
-                                 ") " \
-                                 "VALUES('{}', '{}', '{}', '{}', '{}') RETURNING id" \
-                .format(deviceid, '', '', now, now)
-            userid = db.execute_db(sqlInsertUserLogin)
-
-            sqlInsertUserLogin = "INSERT INTO " \
-                                 "common_user_login_account(" \
-                                 "userid, login_account, status, create_time, update_time" \
-                                 ") " \
-                                 "VALUES('{}', '{}', '{}', '{}', '{}') " \
-                .format(userid, deviceid, 1, now, now)
-            db.execute_db(sqlInsertUserLogin)
+            userid = user_dao.add_user(deviceid)
+            user_dao.add_user_login_account(userid, deviceid, 1)
 
         appid = devObj["applicationId"]
         '''更新设备登录记录'''
-        sqlQueryUserDevice = "select * from common_user_device where userid = '{}' and device_id = '{}' " \
-                             "and appid = '{}'"\
-            .format(userid, deviceid, appid)
-        userDevice = db.select_db(sqlQueryUserDevice)
+        userDevice = user_dao.select_device_by_userid_deviceid_appid(userid, deviceid, appid)
         clientIp = getip(request)
         if userDevice:
-            sqlUpdateUserDevice = "UPDATE common_user_device set status = 1, ip = '{}', update_time = '{}' " \
-                                  "where id = '{}'" \
-                .format(deviceid, clientIp, now, userDevice[0].get(0))
-            db.execute_db(sqlUpdateUserDevice)
+            user_dao.update_user_device(clientIp, userDevice[0].get(0))
         else:
-            addUpdateUserDevice = "INSERT INTO common_user_device(" \
-                                  "userid, appid, device_id, ip, status, create_time, update_time" \
-                                  ") values('{}', '{}', '{}', '{}', '{}', '{}', '{}') " \
-                .format(userid, appid, deviceid, clientIp, 1, now, 0)
-            db.execute_db(addUpdateUserDevice)
+            user_dao.create_user_device(userid, deviceid, appid, clientIp, 1)
 
-        sessObj = {"t": now, "userid": userid, "deviceid": deviceid, "appid": appid, "ip": clientIp}
-        sess = cipher.encrypt(json.dumps(sessObj))
+        sess = session.generate(userid, deviceid, appid, clientIp)
         result = {"sess": sess, "uid": userid}
+        return jsonify({"code": 200, "result": result})
+    except BadRequest as e:
+        # 如果 get_json() 引发 BadRequest 异常，则捕获并处理它
+        return jsonify({"code": 400, "message": "参数异常"}), 400
+    except Exception as e:
+        print("操作出现错误：{}".format(e))
+        app.logger.exception("捕获到异常")
+        return jsonify({"code": 500, "message": "系统异常"}), 500
+
+
+@app.route('/internal/sentence/import', methods=["POST"])
+def sentence_import():
+    try:
+        clientIp = getip(request)
+        if clientIp != '192.168.50.57':
+            return jsonify({"code": 403, "message": "no auth"})
+        # 检查是否有文件上传
+        if 'file' not in request.files:
+            return jsonify({"code": 400, "message": "file error"})
+        file = request.files['file']
+
+        # 如果用户没有选择文件，浏览器也会提交一个空文件部分，没有文件名
+        if file.filename == '':
+            return jsonify({"code": 400, "message": "file name error"})
+
+        if file:
+            # 使用 with 语句确保文件在处理后被正确关闭
+            with file.stream as f:
+                now = int(time.time_ns() // 1_1000_000)
+                for row in f:
+                    fields = row.decode('utf-8').strip().split(',')
+                    sentence_dao.add(fields[0], fields[1], fields[2], fields[3], now)
+
+        return jsonify({"code": 200})
+    except BadRequest as e:
+        # 如果 get_json() 引发 BadRequest 异常，则捕获并处理它
+        return jsonify({"code": 400, "message": "参数异常"}), 400
+    except Exception as e:
+        print("操作出现错误：{}".format(e))
+        app.logger.exception("捕获到异常")
+        return jsonify({"code": 500, "message": "系统异常"}), 500
+
+
+@app.route('/internal/background/import', methods=["POST"])
+def background_import():
+    try:
+        clientIp = getip(request)
+        if clientIp != '192.168.50.57':
+            return jsonify({"code": 403, "message": "no auth"})
+        # 检查是否有文件上传
+        if 'file' not in request.files:
+            return jsonify({"code": 400, "message": "file error"})
+        file = request.files['file']
+
+        # 如果用户没有选择文件，浏览器也会提交一个空文件部分，没有文件名
+        if file.filename == '':
+            return jsonify({"code": 400, "message": "file name error"})
+
+        if file:
+            # 使用 with 语句确保文件在处理后被正确关闭
+            with open(file.filename, 'r') as f:
+                reader = csv.DictReader(f)
+                now = int(time.time_ns() // 1_1000_000)
+                for row in reader:
+                    fields = row.strip().split(',')
+                    background_dao.add(fields[0], fields[1], fields[2], fields[3], now)
+
+        return jsonify({"code": 200})
+    except BadRequest as e:
+        # 如果 get_json() 引发 BadRequest 异常，则捕获并处理它
+        return jsonify({"code": 400, "message": "参数异常"}), 400
+    except Exception as e:
+        print("操作出现错误：{}".format(e))
+        app.logger.exception("捕获到异常")
+        return jsonify({"code": 500, "message": "系统异常"}), 500
+
+
+@app.route('/sentence', methods=["GET"])
+def sentence():
+    try:
+        header_sess = request.headers["sess"]
+        if not session.check(header_sess):
+            return jsonify({"code": 401, "message": "login first please"})
+        uid = session.get_uid(request.headers["sess"])
+        lastId = request.args.get("lastId", 0)
+        length = request.args.get("length", 20)
+        if length > 1000:
+            length = 1000
+
+        data = sentence_dao.list_by_begin_id(lastId, length)
+        result = [{'id': obj[0], 'name': obj[1], 'content': obj[2]} for obj in data]
+        return jsonify({"code": 200, "result": result})
+    except BadRequest as e:
+        # 如果 get_json() 引发 BadRequest 异常，则捕获并处理它
+        return jsonify({"code": 400, "message": "参数异常"}), 400
+    except Exception as e:
+        print("操作出现错误：{}".format(e))
+        app.logger.exception("捕获到异常")
+        return jsonify({"code": 500, "message": "系统异常"}), 500
+
+
+@app.route('/background', methods=["GET"])
+def background():
+    try:
+        header_sess = request.headers["sess"]
+        if not session.check(header_sess):
+            return jsonify({"code": 401, "message": "login first please"})
+        uid = session.get_uid(request.headers["sess"])
+        lastId = request.args.get("lastId", 0)
+        length = request.args.get("length", 20)
+        if length > 1000:
+            length = 1000
+
+        data = background_dao.list_by_begin_id(lastId, length)
+        result = [{'name': obj[1], 'src': obj[2]} for obj in data]
         return jsonify({"code": 200, "result": result})
     except BadRequest as e:
         # 如果 get_json() 引发 BadRequest 异常，则捕获并处理它
