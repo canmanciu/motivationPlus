@@ -9,7 +9,7 @@ class UserDao:
         self.db = db
 
     def add_user(self, deviceid):
-        now = int(time.time_ns() // 1_1000_000)
+        now = int(time.time_ns() // 1_000_000)
         sqlInsertUserLogin = "INSERT INTO " \
                              "common_user(" \
                              "nickname, email, mobile, create_time, update_time" \
@@ -19,7 +19,7 @@ class UserDao:
         return db.execute_db(sqlInsertUserLogin)
 
     def add_user_login_account(self, userid, login_account, status):
-        now = int(time.time_ns() // 1_1000_000)
+        now = int(time.time_ns() // 1_000_000)
         sqlInsertUserLogin = "INSERT INTO " \
                              "common_user_login_account(" \
                              "userid, login_account, status, create_time, update_time" \
@@ -34,14 +34,14 @@ class UserDao:
         return db.select_db(sql)
 
     def update_user_device(self, ip, id):
-        now = int(time.time_ns() // 1_1000_000)
+        now = int(time.time_ns() // 1_000_000)
         sqlUpdateUserDevice = "UPDATE common_user_device set status = 1, ip = '{}', update_time = '{}' " \
                               "where id = '{}'" \
             .format(ip, now, id)
         db.execute_db(sqlUpdateUserDevice)
 
     def create_user_device(self, userid, deviceid, appid, ip, status):
-        now = int(time.time_ns() // 1_1000_000)
+        now = int(time.time_ns() // 1_000_000)
         sqlInsertUserDevice = "INSERT INTO " \
                               "common_user_device(" \
                               "userid, device_id, appid, ip, status, create_time, update_time" \

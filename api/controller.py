@@ -42,12 +42,12 @@ def device_init():
         print("获取 {} 设备信息 == >> {}".format(deviceid, data))
         if not data:
             """创建新纪录"""
-            now = int(time.time_ns() // 1_1000_000)
+            now = int(time.time_ns() // 1_000_000)
             device_dao.add(deviceid, system, branch, system_version, name, extension, now)
 
         application = device_dao.select_device_app_by_deviceid(deviceid)
         if not application:
-            now = int(time.time_ns() // 1_1000_000)
+            now = int(time.time_ns() // 1_000_000)
             device_dao.add_device_app(deviceid, application_id, app_version, now)
 
         request.json['deviceId'] = deviceid
@@ -74,7 +74,7 @@ def user_login():
 
         """根据设备进行帐号生成"""
         data = user_dao.select_by_login_account(deviceid)
-        now = int(time.time_ns() // 1_1000_000)
+        now = int(time.time_ns() // 1_000_000)
         print("获取 {} 登录帐号绑定信息 == >> {}".format(deviceid, data))
         if data:
             userid = data[0].get(1)
@@ -123,7 +123,7 @@ def sentence_import():
         if file:
             # 使用 with 语句确保文件在处理后被正确关闭
             with file.stream as f:
-                now = int(time.time_ns() // 1_1000_000)
+                now = int(time.time_ns() // 1_000_000)
                 for row in f:
                     fields = row.decode('utf-8').strip().split(',')
                     sentence_dao.add(fields[0], fields[1], fields[2], fields[3], now)
@@ -157,7 +157,7 @@ def background_import():
             # 使用 with 语句确保文件在处理后被正确关闭
             with open(file.filename, 'r') as f:
                 reader = csv.DictReader(f)
-                now = int(time.time_ns() // 1_1000_000)
+                now = int(time.time_ns() // 1_000_000)
                 for row in reader:
                     fields = row.strip().split(',')
                     background_dao.add(fields[0], fields[1], fields[2], fields[3], now)

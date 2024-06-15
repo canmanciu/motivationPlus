@@ -9,7 +9,7 @@ class Session:
         self.cipher = cipher
 
     def generate(self, uid, deviceid, appid, ip):
-        now = int(time.time_ns() // 1_1000_000)
+        now = int(time.time_ns() // 1_000_000)
         sessObj = {"t": now, "uid": uid, "deviceid": deviceid, "appid": appid, "ip": ip}
         return cipher.encrypt(json.dumps(sessObj))
 
