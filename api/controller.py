@@ -33,7 +33,7 @@ def device_init():
         app_version = request.json.get("applicationVersion", "").strip()  # 应用版本
         name = request.json.get("name", "").strip()  # 名称
         application_id = request.json.get("applicationId", "").strip()  # 应用id
-        extension = request.json.get("extension", "{}").strip()  # 扩展字段
+        extension = request.json.get("extension", {})  # 扩展字段
         if not application_id:
             return jsonify({"code": 400, "message": "param applicationId illegal"})
 
@@ -43,12 +43,15 @@ def device_init():
         if not data:
             """创建新纪录"""
             now = int(time.time_ns() // 1_000_000)
-            device_dao.add(deviceid, system, branch, system_version, name, extension, now)
+            device_dao.add(deviceid, system, branch, system_version, name, json.dumps(extension), now)
 
         application = device_dao.select_device_app_by_deviceid(deviceid)
         if not application:
             now = int(time.time_ns() // 1_000_000)
             device_dao.add_device_app(deviceid, application_id, app_version, now)
+        elif app_version and application[0][3] != app_version:
+            now = int(time.time_ns() // 1_000_000)
+            device_dao.update_device_app_info(deviceid, application_id, app_version, now)
 
         request.json['deviceId'] = deviceid
         fp = cipher.encrypt(json.dumps(request.json))
@@ -74,7 +77,6 @@ def user_login():
 
         """根据设备进行帐号生成"""
         data = user_dao.select_by_login_account(deviceid)
-        now = int(time.time_ns() // 1_000_000)
         print("获取 {} 登录帐号绑定信息 == >> {}".format(deviceid, data))
         if data:
             userid = data[0].get(1)

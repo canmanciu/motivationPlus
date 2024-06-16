@@ -30,6 +30,12 @@ class DeviceDao:
             .format(deviceid, appid, version, now, now)
         db.execute_db(sqlInsertDevApp)
 
+    def update_device_app_info(self, deviceid, appid, version, now):
+        sqlUpdateDevApp = ("UPDATE common_device_app "
+                           "set version='{}', update_time={} where device_id = '{}' and appid = '{}'") \
+            .format(version, now, deviceid, appid)
+        db.execute_db(sqlUpdateDevApp)
+
 
 device_dao = DeviceDao(db)
 
